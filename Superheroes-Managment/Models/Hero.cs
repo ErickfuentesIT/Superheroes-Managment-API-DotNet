@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Collections.Generic;   
 
 namespace Superheroes_Managment.Models
 {
@@ -13,6 +14,6 @@ namespace Superheroes_Managment.Models
         public required string Name { get; set; }
 
         public string? Alias { get; set; }
-
+        public ICollection<Power> Powers { get; set; } = new List<Power>();
     }
 }

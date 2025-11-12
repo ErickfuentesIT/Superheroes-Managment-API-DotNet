@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace Superheroes_Managment.Models
 {
@@ -17,6 +18,7 @@ namespace Superheroes_Managment.Models
         public string? Description { get; set; }
 
         [ForeignKey("HeroId")]
+        [JsonIgnore]
         public Hero? Hero { get; set; }
     }
 }
