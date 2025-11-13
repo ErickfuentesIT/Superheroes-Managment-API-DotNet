@@ -2,6 +2,8 @@
 using Microsoft.EntityFrameworkCore;
 using Superheroes_Managment.Context;
 using Superheroes_Managment.Models;
+using Superheroes_Managment.DTOs;
+using System.Collections;
 
 namespace Superheroes_Managment.Controllers
 {
@@ -16,10 +18,29 @@ namespace Superheroes_Managment.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Hero>>> GetHeroes() {
+        public async Task<ActionResult<IEnumerable<HeroDto>>> GetHeroes() {
 
-            var heroes = await _context.Heroes.ToListAsync();
+            var heroes = await _context.Heroes.Select(h => new HeroDto { Id = h.Id,
+            Name = h.Name,
+            Alias = h.Alias,
+            PowersCount = h.Powers.Count()
+            }).ToListAsync();
             return Ok(heroes);
+        }
+
+        [HttpGet("top-powers")]
+        public async Task<ActionResult<IEnumerable<HeroDto>>> GetHeroesTopPowers() {
+
+
+            var heroes = await _context.Heroes.Select(h => new HeroDto
+            {
+                Id = h.Id,
+                Name = h.Name,
+                Alias = h.Alias,
+                PowersCount = h.Powers.Count()
+            }).OrderByDescending(h => h.PowersCount).ToListAsync();
+            return Ok(heroes);
+
         }
 
         [HttpGet("{id}")]
