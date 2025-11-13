@@ -1,164 +1,135 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using FluentValidation;
 using Superheroes_Managment.Context;
 using Superheroes_Managment.Models;
+using System.ComponentModel.DataAnnotations;
 
 namespace Superheroes_Managment.Controllers
 {
-    public class PowersController : Controller
-    {
+    [ApiController]
+    [Route("powers")]
+    public class PowersController : ControllerBase {
+
         private readonly AppDbContext _context;
 
-        public PowersController(AppDbContext context)
+        private readonly IValidator<Power> _validator;
+        public PowersController(AppDbContext context, IValidator<Power> validator)
         {
             _context = context;
+            _validator = validator;
         }
 
-        // GET: Powers
-        public async Task<IActionResult> Index()
-        {
-            var appDbContext = _context.Powers.Include(p => p.Hero);
-            return View(await appDbContext.ToListAsync());
-        }
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<Power>>> getPowers([FromQuery] int? heroId) {
 
-        // GET: Powers/Details/5
-        public async Task<IActionResult> Details(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
+            var query = _context.Powers.AsQueryable();
+
+            if (heroId.HasValue) {
+
+                query = query.Where(p => p.HeroId == heroId.Value);
             }
 
-            var power = await _context.Powers
-                .Include(p => p.Hero)
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (power == null)
-            {
-                return NotFound();
-            }
-
-            return View(power);
+            var powers = await query.ToListAsync();
+            return Ok(powers);
         }
 
-        // GET: Powers/Create
-        public IActionResult Create()
-        {
-            ViewData["HeroId"] = new SelectList(_context.Heroes, "Id", "Name");
-            return View();
-        }
-
-        // POST: Powers/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,HeroId,Name,Description")] Power power)
+        public async Task<ActionResult<Power>> CreatePower(Power power)
         {
-            if (ModelState.IsValid)
-            {
-                _context.Add(power);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
-            }
-            ViewData["HeroId"] = new SelectList(_context.Heroes, "Id", "Name", power.HeroId);
-            return View(power);
-        }
 
-        // GET: Powers/Edit/5
-        public async Task<IActionResult> Edit(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
+            var validationResult = await _validator.ValidateAsync(power);
+
+            if (!validationResult.IsValid) {
+
+                return BadRequest(validationResult.ToDictionary());
+
             }
 
-            var power = await _context.Powers.FindAsync(id);
-            if (power == null)
-            {
-                return NotFound();
-            }
-            ViewData["HeroId"] = new SelectList(_context.Heroes, "Id", "Name", power.HeroId);
-            return View(power);
-        }
+            var heroExists = await _context.Heroes.AnyAsync(h => h.Id == power.HeroId);
 
-        // POST: Powers/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,HeroId,Name,Description")] Power power)
-        {
-            if (id != power.Id)
-            {
-                return NotFound();
+            if (!heroExists) {
+
+                return BadRequest($"No existe un héroe con el Id {power.HeroId}");
+            
             }
 
-            if (ModelState.IsValid)
-            {
-                try
-                {
-                    _context.Update(power);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!PowerExists(power.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-                return RedirectToAction(nameof(Index));
-            }
-            ViewData["HeroId"] = new SelectList(_context.Heroes, "Id", "Name", power.HeroId);
-            return View(power);
-        }
-
-        // GET: Powers/Delete/5
-        public async Task<IActionResult> Delete(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
-            var power = await _context.Powers
-                .Include(p => p.Hero)
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (power == null)
-            {
-                return NotFound();
-            }
-
-            return View(power);
-        }
-
-        // POST: Powers/Delete/5
-        [HttpPost, ActionName("Delete")]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(int id)
-        {
-            var power = await _context.Powers.FindAsync(id);
-            if (power != null)
-            {
-                _context.Powers.Remove(power);
-            }
+            _context.Powers.Add(power);
 
             await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+
+            return CreatedAtAction(
+                nameof(getPowers), 
+                new { id = power.Id },
+                power);
+
+        }
+
+        [HttpPut("{id}")]
+        public async Task<ActionResult> UpdatePower(int id, Power power) {
+
+            if (id != power.Id) {
+
+                return BadRequest("No coincide el ID del cuerpo con la URL");
+
+            }
+
+            var heroExists = await _context.Heroes.AnyAsync(h => h.Id == power.HeroId);
+
+            if (!heroExists)
+            {
+
+                return BadRequest($"No existe un héroe con el Id {power.HeroId}");
+
+            }
+
+            _context.Entry(power).State = EntityState.Modified;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!PowerExists(id))
+                {
+                    return NotFound();
+                }
+            }
+
+            return NoContent();
+
+
+
         }
 
         private bool PowerExists(int id)
         {
             return _context.Powers.Any(e => e.Id == id);
         }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeletePower(int id) {
+
+            var power = await _context.Powers.FindAsync(id);
+
+            if (power == null)
+            {
+                return NotFound();
+            }
+
+            _context.Powers.Remove(power);
+
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+
+
+        }
+
+
     }
+
+
 }
+
